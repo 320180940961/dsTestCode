@@ -16,8 +16,8 @@ JUMP_TAB = {
     "ADD": ["ADD", "INSERT", "DELETE", "IDLE"],
     "INSERT": ["INSERT", "ADD", "DELETE", "IDLE"],
     "DELETE": ["DELETE", "ADD", "INSERT", "IDLE"],
-    "NAV": ["MVTO", "RECORD", "IDLE"],
-    "MVTO": ["MVTO", "NAV", "IDLE"],
+    "NAV": ["NAV", "MVTO", "RECORD", "IDLE"],
+    "MVTO": ["NAV", "MVTO", "NAV", "IDLE"],
     "IDLE": ["RECORD", "NAV"],
 }
 
