@@ -37,3 +37,38 @@ Exception in thread Thread-14:
                                                                                                                                                                File "/opt/ros/noetic/lib/python3/dist-packages/rospy/topics.py", line 886, in publish
                                               raise ROSSerializationException(str(e))
                                                                                      rospy.exceptions.ROSSerializationException: field y must be an integer type
+
+
+
+
+ admin@GT-02 > nav 0619
+Naver in 'navigation' mode initialized.
+正在获取初始定位...
+等待初始定位... (0.0s)
+使用默认的正向导航
+导航准备完成 (forward方向, 5点)
+开始闭环控制前往目标点 0/5
+ admin@GT-02 > nav -0619
+Naver in 'navigation' mode initialized.
+正在获取初始定位...
+等待初始定位... (0.0s)
+逆向导航: 准备从终点(点4)开始返回
+导航准备完成 (reverse方向, 5点)
+开始闭环控制前往目标点 4/5
+ admin@GT-02 > idle
+导航停止信号已发送
+[IDLE] 进入闲置状态
+ admin@GT-02 > nav -0619
+Naver in 'navigation' mode initialized.
+正在获取初始定位...
+等待初始定位... (0.0s)
+逆向导航: 准备从终点(点4)开始返回
+导航准备完成 (reverse方向, 5点)
+开始闭环控制前往目标点 4/5
+ admin@GT-02 > nav -0619
+Naver in 'navigation' mode initialized.
+正在获取初始定位...
+等待初始定位... (0.0s)
+逆向导航: 准备从终点(点4)开始返回
+导航准备完成 (reverse方向, 5点)
+开始闭环控制前往目标点 4/5
