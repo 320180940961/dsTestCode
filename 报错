@@ -1,0 +1,39 @@
+Exception in thread Thread-14:
+                                             Traceback (most recent call last):
+                                                                                 File "/home/robotcar/gxy/dabo/devel/lib/python3/dist-packages/ros_ht_msg/msg/_ht_control.py", line 66, in serialize
+                                                                                                                                                                                                        buff.write(_get_struct_B2hB().pack(_x.mode, _x.x, _x.y, _x.stop))
+                                                              struct.error: required argument is not an integer
+
+                                                                                                               During handling of the above exception, another exception occurred:
+
+                                                                                                                                                                                  Traceback (most recent call last):
+           File "/opt/ros/noetic/lib/python3/dist-packages/rospy/topics.py", line 882, in publish
+                                                                                                     self.impl.publish(data)
+                                                                                                                              File "/opt/ros/noetic/lib/python3/dist-packages/rospy/topics.py", line 1066, in publish
+              serialize_message(b, self.seq, message)
+                                                       File "/opt/ros/noetic/lib/python3/dist-packages/rospy/msg.py", line 152, in serialize_message
+                                                                                                                                                        msg.serialize(b)
+                                                                                                                                                                          File "/home/robotcar/gxy/dabo/devel/lib/python3/dist-packages/ros_ht_msg/msg/_ht_control.py", line 67, in serialize
+                                                                                      except struct.error as se: self._check_types(struct.error("%s: '%s' when writing '%s'" % (type(se), str(se), str(locals().get('_x', self)))))
+                          File "/opt/ros/noetic/lib/python3/dist-packages/genpy/message.py", line 393, in _check_types
+                                                                                                                          check_type(n, t, getattr(self, n))
+                                                                                                                                                              File "/opt/ros/noetic/lib/python3/dist-packages/genpy/message.py", line 261, in check_type
+                                                 raise SerializationError('field %s must be an integer type' % field_name)
+                                                                                                                          genpy.message.SerializationError: field y must be an integer type
+
+                                                                                                                                                                                           During handling of the above exception, another exception occurred:
+
+                                                   Traceback (most recent call last):
+                                                                                       File "/usr/lib/python3.8/threading.py", line 932, in _bootstrap_inner
+                                                                                                                                                                self.run()
+                                                                                                                                                                            File "/home/robotcar/gxy/dabo/src/ros_ht_msg/test_code/node_bak.py", line 60, in run
+                                                         self.run_navigation_task()
+                                                                                     File "/home/robotcar/gxy/dabo/src/ros_ht_msg/test_code/node_bak.py", line 103, in run_navigation_task
+                                                                                                                                                                                              arrived = self.go_to_point_closed_loop(current_pos, target, idx_info)
+                                                          File "/home/robotcar/gxy/dabo/src/ros_ht_msg/test_code/node_bak.py", line 148, in go_to_point_closed_loop
+                                                                                                                                                                       self.commander.send_move_command(linear_velocity, turn_cmd)
+                         File "/home/robotcar/gxy/dabo/src/ros_ht_msg/test_code/node_bak.py", line 234, in send_move_command
+                                                                                                                                self.pub.publish(control_msg)
+                                                                                                                                                               File "/opt/ros/noetic/lib/python3/dist-packages/rospy/topics.py", line 886, in publish
+                                              raise ROSSerializationException(str(e))
+                                                                                     rospy.exceptions.ROSSerializationException: field y must be an integer type
