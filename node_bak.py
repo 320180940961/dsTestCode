@@ -71,8 +71,8 @@ class Naver(Thread):
         self.arrival_threshold = 0.5      # 到达阈值（米）, 可适当放宽
         self.turn_arrival_threshold = 2.0 # 转向完成阈值（度），小于此值认为车头已对准
         self.kp_turn = 1.5                # 转向比例增益
-        self.forward_speed = 60           # 前进速度 (0-100)
-        self.reverse_speed = 40           # 倒车速度 (0-100)
+        self.forward_speed = 100           # 前进速度 (0-100)
+        self.reverse_speed = 100           # 倒车速度 (0-100)
         self.max_turn_cmd = 174           # 最大转向控制值
 
         # 定义航向角偏移量 (RTK天线方向 与 车辆前进方向 的夹角)
@@ -193,6 +193,7 @@ class Naver(Thread):
 
             angular_velocity_cmd = self.kp_turn * yaw_error_rad
             turn_cmd = np.clip(angular_velocity_cmd * 100, -self.max_turn_cmd, self.max_turn_cmd)
+            self.log.append(f"turn_cmd{turn_cmd}")
             self.commander.send_move_command(0, turn_cmd)
             control_rate.sleep()
 
@@ -231,9 +232,10 @@ class Naver(Thread):
 
             yaw_error_rad, _ = self.compute_heading_error(current_pos, target_pos)
             angular_velocity_cmd = self.kp_turn * yaw_error_rad
-            turn_cmd = np.clip(angular_velocity_cmd * 100, -self.max_turn_cmd, self.max_turn_cmd)
+            turn_cmd = np.clip(angular_velocity_cmd * 10, -self.max_turn_cmd, self.max_turn_cmd)
 
-            self.commander.send_move_command(linear_velocity, turn_cmd)
+            # self.commander.send_move_command(linear_velocity, turn_cmd)
+            self.commander.send_move_command(linear_velocity, 0)
             control_rate.sleep()
 
     def compute_heading_error(self, start, target):
@@ -419,12 +421,15 @@ class BasePlateCommand:
 
     def send_move_command(self, linear_velocity, turn_cmd):
         """发送单条移动指令。"""
+        # Mode 1 轮速转速模式 2 线速度模式
         control_msg = ht_control(
-            mode=1,
+            mode=2,
             x=int(linear_velocity),
             y=int(turn_cmd),
             stop=0
         )
+        # print(f"[BaseComand] linear_velocity{linear_velocity} turn_cmd{turn_cmd}")
+        self.log_container.append(f"[BaseComand] linear_velocity {linear_velocity} turn_cmd {turn_cmd}")
         self.pub.publish(control_msg)
     
     def send_stop_command(self):
