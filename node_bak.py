@@ -118,12 +118,19 @@ class Naver(Thread):
         self.stop_robot()
         self.cleanup_subscribers()
 
+# In: node_bak.py -> class Naver
+
     def go_to_point_closed_loop(self, start_pos, target_pos, target_info):
+        """
+        使用闭环控制逻辑，使机器人从 start 移动到 target。
+        返回 True 表示成功到达，返回 False 表示任务被中断。
+        """
         self.log.append(f"开始闭环控制前往目标点 {target_info}")
         current_pos = start_pos
         control_rate = rospy.Rate(10) # 10Hz的控制频率
 
         while not rospy.is_shutdown():
+
             if self.stop_event.is_set():
                 return False
 
@@ -132,10 +139,23 @@ class Naver(Thread):
                 current_pos = realtime_pos
             
             distance = self._calc_distance(current_pos['lat'], current_pos['lng'], target_pos['lat'], target_pos['lng'])
+            yaw_error, reverse_motion = self.compute_heading_error(current_pos, target_pos)
+            yaw_error_deg = math.degrees(yaw_error)  # 转换为角度以便查看
+
+            # 2. 构建包含所有关键信息的调试日志
+            debug_msg = (
+                f"控制循环: "
+                f"目标点={target_info}, "
+                f"距离={distance:.2f}m, "
+                f"角度差={yaw_error_deg:.1f}°"  # 新增的角度差信息
+            )
+            # 将距离信息也加入调试日志
+            debug_msg += f"距离目标={distance:.2f}m"
+            self.log.append(debug_msg)
 
             if distance < self.arrival_threshold:
                 self.log.append(f"距离目标点({distance:.2f}m)小于阈值，认为到达。")
-                self.stop_robot()
+                self.commander.send_stop_command()
                 return True
 
             yaw_error, reverse_motion = self.compute_heading_error(current_pos, target_pos)
@@ -230,7 +250,9 @@ class BasePlateCommand:
 
     def send_move_command(self, linear_velocity, turn_cmd):
         """发送单条移动指令"""
-        control_msg = ht_control(mode=1, x=linear_velocity, y=turn_cmd, stop=0)
+        # 将浮点数的转向值转换为整数
+        turn_cmd_int = int(round(turn_cmd))
+        control_msg = ht_control(mode=1, x=linear_velocity, y=turn_cmd_int, stop=0)
         self.pub.publish(control_msg)
     
     def send_stop_command(self):
