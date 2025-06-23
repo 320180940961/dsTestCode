@@ -48,10 +48,11 @@ class Naver(Thread):
         
         # 【修改点】: 在此处定义闭环控制的参数，方便调整
         self.arrival_threshold = 0.1  # 到达阈值（米）
-        self.kp_turn = 1.2            # 转向的比例增益
-        self.forward_speed = 60       # 前进速度 (0-100)
-        self.reverse_speed = 40       # 倒车速度 (0-100)
-        self.max_turn_cmd = 174       # 最大转向控制值
+        self.kp_turn = 1            # 转向的比例增益
+        self.forward_speed = 100       # 前进速度 (0-100)
+        self.reverse_speed = 100       # 倒车速度 (0-100)
+        self.max_turn_cmd = 0.02* math.pi*0.99       # 最大转向控制值
+        # self.max_turn_cmd = 174       # 最大转向控制值
 
         self.log.append(f"Naver in '{mode}' mode initialized.")
 
@@ -157,13 +158,21 @@ class Naver(Thread):
                 self.log.append(f"距离目标点({distance:.2f}m)小于阈值，认为到达。")
                 self.commander.send_stop_command()
                 return True
+                
 
             yaw_error, reverse_motion = self.compute_heading_error(current_pos, target_pos)
             
             linear_velocity = -self.reverse_speed if reverse_motion else self.forward_speed
-            angular_velocity_cmd = self.kp_turn * yaw_error
+            angular_velocity_cmd = self.kp_turn * yaw_error # 0.001 弧度
+            # angular_velocity_cmd = self.kp_turn * yaw_error  * 1000 # 1 弧度
             
-            turn_cmd = np.clip(angular_velocity_cmd * 100, -self.max_turn_cmd, self.max_turn_cmd)
+            #1.minimal value 15 +-5
+            if angular_velocity_cmd >0:
+                turn_cmd = np.clip(angular_velocity_cmd, -self.max_turn_cmd, self.max_turn_cmd) # @TODO
+            else:
+                turn_cmd = np.clip(angular_velocity_cmd, -0.2*math.pi, -0.15*math.pi)* 200 # @TODO
+                self.log.append(f"(N: turn_cmd{turn_cmd:.2f})")
+
 
             self.commander.send_move_command(linear_velocity, turn_cmd)
             control_rate.sleep()
@@ -176,7 +185,8 @@ class Naver(Thread):
         y = math.sin(dlon) * math.cos(lat2_rad)
         x = math.cos(lat1_rad) * math.sin(lat2_rad) - math.sin(lat1_rad) * math.cos(lat2_rad) * math.cos(dlon)
         target_angle_rad = math.atan2(y, x)
-        yaw_error = (target_angle_rad - current_yaw_rad + math.pi) % (2 * math.pi) - math.pi
+        # yaw_error = (target_angle_rad - current_yaw_rad + math.pi) % (2 * math.pi) - math.pi
+        yaw_error = (target_angle_rad - current_yaw_rad + math.pi + 0.5*math.pi) % (2 * math.pi) - math.pi
         
         reverse_motion = abs(yaw_error) > (math.pi / 2)
         if reverse_motion:
@@ -249,7 +259,10 @@ class BasePlateCommand:
         self.log_container = log_container if log_container is not None else []
 
     def send_move_command(self, linear_velocity, turn_cmd):
-        """发送单条移动指令"""
+        """发送单条移动指令
+        linear_velocity:  前进线速度 mm/s
+        turn_cmd: 转向角速度 0.001 rad/s
+        """
         # 将浮点数的转向值转换为整数
         turn_cmd_int = int(round(turn_cmd))
         control_msg = ht_control(mode=1, x=linear_velocity, y=turn_cmd_int, stop=0)
