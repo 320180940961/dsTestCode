@@ -68,7 +68,7 @@ class Naver(Thread):
         self.commander = BasePlateCommand(log_container=self.log)
 
         # --- 可调校的闭环控制参数 ---
-        self.arrival_threshold = 0.5      # 到达阈值（米）, 可适当放宽
+        self.arrival_threshold = 0.2      # 到达阈值（米）, 可适当放宽
         self.turn_arrival_threshold = 2.0 # 转向完成阈值（度），小于此值认为车头已对准
         self.kp_turn = 1.5                # 转向比例增益
         self.forward_speed = 100           # 前进速度 (0-100)
@@ -77,6 +77,7 @@ class Naver(Thread):
 
         # 定义航向角偏移量 (RTK天线方向 与 车辆前进方向 的夹角)
         self.YAW_OFFSET_DEG = -90.0
+        # self.YAW_OFFSET_DEG = 0.0
 
         # 【新增】: 用于检测机器人是否卡住的参数
         self.stuck_timeout = 3.0  # 几秒后开始检测 (秒)
@@ -130,7 +131,7 @@ class Naver(Thread):
             self.current_target = target
             try:
                 self.current_target_index = self.points.index(target)
-                idx_info = f"{self.current_target_index}/{len(self.points)}"
+                idx_info = f"{self.current_target_index+1}/{len(self.points)}"
             except ValueError:
                 self.current_target_index = None
                 idx_info = "未知索引"
@@ -170,11 +171,14 @@ class Naver(Thread):
                 return False
 
             current_pos = self.get_current_position() or start_pos
+            # self.log.append(f"Yaw {current_pos["yaw"]} Anagle {current_pos["angle"]}")
+            self.log.append(f"{current_pos}")
 
             yaw_error_rad, reverse_motion = self.compute_heading_error(current_pos, target_pos)
             yaw_error_deg = math.degrees(yaw_error_rad)
 
             self.log.append(f"转向中... 目标点: {target_info}, 角度差: {yaw_error_deg:.1f}°")
+
 
              # 检查是否卡住
             if not stuck_warning_issued and (rospy.get_time() - turn_start_time > self.stuck_timeout):
@@ -192,11 +196,12 @@ class Naver(Thread):
                 break
 
             angular_velocity_cmd = self.kp_turn * yaw_error_rad
-            turn_cmd = np.clip(angular_velocity_cmd * 100, -self.max_turn_cmd, self.max_turn_cmd)
+            turn_cmd = np.clip(angular_velocity_cmd * 500, -self.max_turn_cmd, self.max_turn_cmd)
             self.log.append(f"turn_cmd{turn_cmd}")
             self.commander.send_move_command(0, turn_cmd)
             control_rate.sleep()
-
+        # debug
+        # rospy.sleep(2)
         # --- 阶段二: 直线行驶，前往目标 ---
         self.log.append("阶段二: 正在直线行驶...")
 
@@ -216,7 +221,7 @@ class Naver(Thread):
             current_pos = self.get_current_position() or current_pos
             distance = self._calc_distance(current_pos['lat'], current_pos['lng'], target_pos['lat'], target_pos['lng'])
 
-            self.log.append(f"行驶中... 目标点: {target_info}, 距离目标: {distance:.2f}m")
+            self.log.append(f"行驶中... 目标点: {target_info}, 距离目标: {distance:.2f}m 方向：{reverse_motion}")
 
             # 检查是否卡住
             if not stuck_warning_issued and (rospy.get_time() - drive_start_time > self.stuck_timeout):
@@ -259,10 +264,13 @@ class Naver(Thread):
 
         # 使用修正后的航向进行误差计算
         yaw_error = target_angle_rad - current_travel_yaw_rad
+        # yaw_error = -target_angle_rad + current_travel_yaw_rad
         # 标准化到 [-pi, pi] 范围
+        self.log.append(f"Tar: {target_angle_rad} Cur: {current_travel_yaw_rad}")
         yaw_error = (yaw_error + math.pi) % (2 * math.pi) - math.pi
 
-        reverse_motion = abs(yaw_error) > (math.pi / 2)
+        # reverse_motion = abs(yaw_error) > (math.pi / 2)
+        reverse_motion = abs(yaw_error) > (math.pi)
         if reverse_motion:
             yaw_error = yaw_error - math.copysign(math.pi, yaw_error)
 
