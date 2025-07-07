@@ -73,13 +73,13 @@ class Naver(Thread):
         # ROS 订阅者与发布者
         self.sub1 = rospy.Subscriber("/gps/filtered", NavSatFix, self.navsat_fix_callback)
         self.sub2 = rospy.Subscriber("/odometry/filtered", Odometry, self.odometry_callback)
-        self.sub3 = rospy.Subscriber("/ros_gt_desk/SliderStatus", SliderStatus, self.slider_callback)
-        self.sub4 = rospy.Subscriber("/ros_gt_desk/MotorStatus", MotorStatus, self.motor_callback)
+        self.sub3 = rospy.Subscriber("/gt_desk/slider_status", SliderStatus, self.slider_callback)
+        self.sub4 = rospy.Subscriber("/gt_desk/mower_status", MotorStatus, self.motor_callback)
         self.sub5 = rospy.Subscriber("/ros_ht_msg/Lift_state", Lift_state, self.lift_callback)
         self.commander = BasePlateCommand(log_container=self.log)
 
-        self.slider_pub = rospy.Publisher("/ros_gt_desk/SliderControl", SliderControl, queue_size=10)
-        self.motor_pub = rospy.Publisher("/ros_gt_desk/MotorControl", MotorControl, queue_size=10)
+        self.slider_pub = rospy.Publisher("/gt_desk/slider_control", SliderControl, queue_size=10)
+        self.motor_pub = rospy.Publisher("/gt_desk/mower_control", MotorControl, queue_size=10)
         self.lift_pub = rospy.Publisher("/ros_ht_msg/Lift_control", Lift_control, queue_size=10)
 
         # --- 可调校的闭环控制参数 ---
@@ -293,7 +293,6 @@ class Naver(Thread):
 
 
             self.log.append(f"yaw_error_deg：{yaw_error_deg}")
-            self.log.append(f"reverse_motion：{reverse_motion}")
             
             # Trasn GEO coord to ROS coord
             self.commander.send_move_command(0, -turn_cmd * 200)
