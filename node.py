@@ -131,12 +131,14 @@ class Naver(Thread):
             # 假设模式2是移动到绝对位置: [mode:2, [pos,vel,acc]]
             if should_zero:
                 # 执行归零操作
-                slider_msg.mode = 1
-                slider_msg.x = [1]
-                slider_msg.y = [1]
+                slider_msg.mode = 2
+                slider_msg.x = [0, 0, 0] 
+                slider_msg.y = [0, 0, 0] 
             else:
                 slider_msg.mode = 2
-                slider_msg.y = [2, target_point['slider_y'], 0, 0] 
+                slider_msg.y = [target_point['slider_y'], 0, 0] 
+                slider_msg.x = [target_point['slider_x1'], 0, 0] 
+
 
             self.slider_pub.publish(slider_msg)
 
@@ -174,7 +176,7 @@ class Naver(Thread):
         self.log.append("[ACTION] 导航前执行滑台归零...")
         try:
             # 创建一个归零指令消息 (mode=1)
-            zeroing_msg = SliderControl(mode=1, x=[1], y=[1])
+            zeroing_msg = SliderControl(mode=2, x=[0, 0, 0], y=[0, 0, 0])
             self.slider_pub.publish(zeroing_msg)
             self.log.append("滑台归零指令已发送，请等待硬件完成操作。")
             rospy.sleep(5) # 预留5秒给硬件执行归零，可根据实际情况调整
