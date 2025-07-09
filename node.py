@@ -301,11 +301,10 @@ class Naver(Thread):
                 turn_cmd = np.clip(yaw_error_rad, math.pi*0.5, math.pi*0.95)
             else:
                 turn_cmd = np.clip(yaw_error_rad, -math.pi*0.95, -math.pi*0.5)
-            turn_cmd = self.kp_turn * yaw_error_rad
             
             # 此处可以添加更精细的转向速度控制逻辑，为简化直接使用P控制
             # 注意: 这里的turn_cmd需要根据ht_control消息的定义来调整单位和范围
-            angular_velocity_cmd = -turn_cmd * 200 # 乘以系数并取反以匹配坐标系
+            angular_velocity_cmd = turn_cmd * 200 # 乘以系数并取反以匹配坐标系
 
             self.commander.send_move_command(0, angular_velocity_cmd)
             control_rate.sleep()
