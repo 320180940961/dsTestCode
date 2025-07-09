@@ -75,12 +75,12 @@ class Naver(Thread):
         self.sub2 = rospy.Subscriber("/odometry/filtered", Odometry, self.odometry_callback)
         self.sub3 = rospy.Subscriber("/gt_desk/slider_status", SliderStatus, self.slider_callback)
         self.sub4 = rospy.Subscriber("/gt_desk/mower_status", MotorStatus, self.motor_callback)
-        self.sub5 = rospy.Subscriber("/ros_ht_msg/Lift_state", Lift_state, self.lift_callback)
+        self.sub5 = rospy.Subscriber("/Lift_Motion", Lift_state, self.lift_callback)
         self.commander = BasePlateCommand(log_container=self.log)
 
         self.slider_pub = rospy.Publisher("/gt_desk/slider_control", SliderControl, queue_size=10)
         self.motor_pub = rospy.Publisher("/gt_desk/mower_control", MotorControl, queue_size=10)
-        self.lift_pub = rospy.Publisher("/ros_ht_msg/Lift_control", Lift_control, queue_size=10)
+        self.lift_pub = rospy.Publisher("/Lift_Control", Lift_control, queue_size=10)
 
         # --- 可调校的闭环控制参数 ---
         self.arrival_threshold = 200      # 到达阈值（mm）, 可适当放宽
@@ -153,6 +153,7 @@ class Naver(Thread):
             # 假设模式1是移动到指定高度
             lift_msg = Lift_control(mode=1, data=target_point['lift_height'])
             self.lift_pub.publish(lift_msg)
+            self.log.append("[WARN] 无法获取Lift状态，跳过X轴差值检查。")
 
     def run_navigation_task(self):
         """执行一次完整的导航任务。"""
@@ -274,6 +275,7 @@ class Naver(Thread):
             # 判断转向是否完成
             if abs(yaw_error_deg) < self.turn_arrival_threshold:
                 self.log.append("转向对准完成。")
+                self.commander.send_stop_command()
                 return # 成功完成转向
 
             # angular_velocity_cmd = self.kp_turn * yaw_error_rad
@@ -367,6 +369,7 @@ class Naver(Thread):
                 last_recalibration_time = rospy.get_time() # 重置计时器
 
             if distance < self.arrival_threshold:
+                # self.align_heading_to_target(start_pos, target_pos, target_info)
                 self.log.append(f"距离目标点({distance:.2f} mm)小于阈值，认为到达。")
                 self.commander.send_stop_command()
                 return True
