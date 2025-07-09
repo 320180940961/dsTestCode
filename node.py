@@ -217,6 +217,12 @@ class Naver(Thread):
             current_pos = self.get_current_position() or target
             self.log.append(f"确认到达 {idx_info} 号点。")
 
+            # 【调用新增功能】: 到达后，校准车头朝向
+            self.align_heading_to_waypoint_yaw(target, idx_info)
+            if self.stop_event.is_set():
+                self.log.append("姿态校准时被用户中断")
+                break
+
         self.status = NAV_STATUS_DONE
         if not self.stop_event.is_set():
             self.log.append(f"{self.dir_mode} 导航任务完成")
@@ -238,6 +244,73 @@ class Naver(Thread):
                     return False  # 如果在暂停时收到停止信号，则退出
             self.log.append("导航已恢复。")
         return True
+
+    # 【新增功能】: 到达目标点后，将车头朝向对准该点记录的朝向
+    def align_heading_to_waypoint_yaw(self, target_pos, target_info):
+        """
+        一个独立的函数，负责在到达目标点后，将车头旋转到与该点记录的朝向一致。
+        允许正向或180度反向对准，取最短路径。
+        """
+        # 检查目标点是否有'yaw'数据
+        if 'yaw' not in target_pos:
+            self.log.append(f"目标点 {target_info} 无朝向数据，跳过姿态校准。")
+            return True
+
+        self.log.append(f"开始校准到达点 {target_info} 的姿态...")
+        control_rate = rospy.Rate(10)
+        
+        while not rospy.is_shutdown():
+            # 检查是否需要暂停或完全停止
+            if not self._wait_if_paused(): return False
+            if self.stop_event.is_set(): return False
+            
+            current_pos = self.get_current_position()
+            if not current_pos:
+                self.log.append("[WARN] 无法获取当前位置，跳过姿态校准。")
+                rospy.sleep(0.5)
+                continue
+
+            # --- 核心计算逻辑 ---
+            current_yaw = current_pos.get('yaw', 0.0)
+            target_yaw = target_pos.get('yaw', 0.0)
+
+            # 计算正向和反向的角度差
+            error_forward = target_yaw - current_yaw
+            error_reverse = (target_yaw - 180.0) - current_yaw # 也可写成 (target_yaw + 180.0)
+
+            # 将角度差标准化到[-180, 180]范围
+            error_forward = (error_forward + 180) % 360 - 180
+            error_reverse = (error_reverse + 180) % 360 - 180
+
+            # 选择绝对值更小的那个作为最终的角度差
+            yaw_error_deg = error_forward if abs(error_forward) < abs(error_reverse) else error_reverse
+            
+            self.log.append(f"姿态校准中... 目标点: {target_info}, 角度差: {yaw_error_deg:.1f}°")
+            
+            # 判断转向是否完成
+            if abs(yaw_error_deg) < self.turn_arrival_threshold:
+                self.log.append(f"到达点 {target_info} 姿态校准完成。")
+                self.commander.send_stop_command()
+                return True # 成功完成
+
+            yaw_error_rad = math.radians(yaw_error_deg)
+
+            # 2. Minimum rotate speed 100/1000 rad/s
+            if yaw_error_rad >0:
+                # turn_cmd = np.clip(angular_velocity_cmd, 100, self.max_turn_cmd)
+                turn_cmd = np.clip(yaw_error_rad, math.pi*0.5, math.pi*0.95)
+            else:
+                turn_cmd = np.clip(yaw_error_rad, -math.pi*0.95, -math.pi*0.5)
+            turn_cmd = self.kp_turn * yaw_error_rad
+            
+            # 此处可以添加更精细的转向速度控制逻辑，为简化直接使用P控制
+            # 注意: 这里的turn_cmd需要根据ht_control消息的定义来调整单位和范围
+            angular_velocity_cmd = -turn_cmd * 200 # 乘以系数并取反以匹配坐标系
+
+            self.commander.send_move_command(0, angular_velocity_cmd)
+            control_rate.sleep()
+
+        return False
 
     def align_heading_to_target(self, start_pos, target_pos, target_info):
         """
