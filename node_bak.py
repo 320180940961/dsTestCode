@@ -154,7 +154,8 @@ class Naver(Thread):
         if (current_time - self.last_motor_command_time) >= 1.0:
             if target_point['comment']=='start_motor':
                 # mode 0：关 ；1：开
-                motor_msg = MotorControl(mode=1, voltage=0)
+                # motor_msg = MotorControl(mode=1, voltage=0)
+                motor_msg = MotorControl(mode=1)
                 self.motor_pub.publish(motor_msg)
                 # 发送后，立即更新时间戳为当前时间
                 self.last_motor_command_time = current_time
@@ -170,7 +171,6 @@ class Naver(Thread):
             # 假设模式1是移动到指定高度
             lift_msg = Lift_control(mode=1, data=target_point['lift_height'])
             self.lift_pub.publish(lift_msg)
-            self.log.append("[WARN] 无法获取Lift状态，跳过X轴差值检查。")
 
     def run_navigation_task(self):
         """执行一次完整的导航任务。"""
