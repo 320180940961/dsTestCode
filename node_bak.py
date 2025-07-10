@@ -49,8 +49,11 @@ class Naver(Thread):
         self.stop_event = Event()
         self.log = []
 
+        # 为电机指令添加时间戳变量，并初始化为0
+        self.last_motor_command_time = 0.0
+
         self.file_logger = None
-        
+
         # 状态属性
         self.status = NAV_STATUS_IDLE
         self.current_position = None
@@ -145,10 +148,18 @@ class Naver(Thread):
             self.slider_pub.publish(slider_msg)
 
         # 2. 控制电机
-        if 'motor_motor' in target_point:
-            # 假设电压为0时使用默认电压
-            motor_msg = MotorControl(mode=target_point['motor_motor'], voltage=0)
-            self.motor_pub.publish(motor_msg)
+        # 获取当前时间
+        current_time = rospy.get_time()
+        # 检查当前时间与上次发送时间的差值是否大于等于1秒
+        if (current_time - self.last_motor_command_time) >= 1.0:
+            if 'motor_motor' in target_point:
+                # 假设电压为0时使用默认电压
+                motor_msg = MotorControl(mode=target_point['motor_motor'], voltage=0)
+                self.motor_pub.publish(motor_msg)
+                
+                # 发送后，立即更新时间戳为当前时间
+                self.last_motor_command_time = current_time
+            
 
         # 3. 控制升降台
         if 'lift_height' in target_point:
