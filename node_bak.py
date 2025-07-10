@@ -152,11 +152,15 @@ class Naver(Thread):
         current_time = rospy.get_time()
         # 检查当前时间与上次发送时间的差值是否大于等于1秒
         if (current_time - self.last_motor_command_time) >= 1.0:
-            if 'motor_motor' in target_point:
-                # 假设电压为0时使用默认电压
-                motor_msg = MotorControl(mode=target_point['motor_motor'], voltage=0)
+            if target_point['comment']=='start_motor':
+                # mode 0：关 ；1：开
+                motor_msg = MotorControl(mode=1, voltage=0)
                 self.motor_pub.publish(motor_msg)
-                
+                # 发送后，立即更新时间戳为当前时间
+                self.last_motor_command_time = current_time
+            else:
+                motor_msg = MotorControl(mode=0, voltage=0)
+                self.motor_pub.publish(motor_msg)
                 # 发送后，立即更新时间戳为当前时间
                 self.last_motor_command_time = current_time
             
@@ -236,6 +240,15 @@ class Naver(Thread):
                 self.log.append("姿态校准时被用户中断")
                 break
 
+            # # 【新增逻辑】: 到达后，再执行设备指令
+            # self.log.append(f"开始执行目标点 {idx_info} 的设备指令...")
+            # self.send_sync_commands(target)
+            # # 增加一个延时，以等待滑台、升降台等物理设备完成动作
+            # # 这个时间可以根据您的设备实际响应速度进行调整
+            # self.log.append("等待设备动作完成 (5秒)...")
+            # rospy.sleep(5.0)
+            # self.log.append("设备动作完成。")
+
         self.status = NAV_STATUS_DONE
         if not self.stop_event.is_set():
             self.log.append(f"{self.dir_mode} 导航任务完成")
@@ -278,10 +291,6 @@ class Naver(Thread):
             if self.stop_event.is_set(): return False
             
             current_pos = self.get_current_position()
-            if not current_pos:
-                self.log.append("[WARN] 无法获取当前位置，跳过姿态校准。")
-                rospy.sleep(0.5)
-                continue
 
             # --- 核心计算逻辑 ---
             current_yaw = current_pos.get('yaw', 0.0)
@@ -315,8 +324,7 @@ class Naver(Thread):
             else:
                 turn_cmd = np.clip(yaw_error_rad, -math.pi*0.95, -math.pi*0.5)
             
-            # 此处可以添加更精细的转向速度控制逻辑，为简化直接使用P控制
-            # 注意: 这里的turn_cmd需要根据ht_control消息的定义来调整单位和范围
+            
             angular_velocity_cmd = turn_cmd * 200 # 乘以系数并取反以匹配坐标系
 
             self.commander.send_move_command(0, angular_velocity_cmd)
