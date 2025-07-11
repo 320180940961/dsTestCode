@@ -91,10 +91,8 @@ class Naver(Thread):
         self.arrival_threshold = 200      # 到达阈值（mm）, 可适当放宽
         self.turn_arrival_threshold = 5.0 # 转向完成阈值（度），小于此值认为车头已对准
         self.kp_turn = 1.5                # 转向比例增益
-        # self.kp_turn = 0.5                # 转向比例增益
         self.forward_speed = 200           # 前进速度 mm/s
         self.reverse_speed = 200           # 倒车速度 mm/s
-        # self.max_turn_cmd = 174           # 最大转向控制值
 
         # 直行时，每隔多少秒检查一次航向
         self.recalibration_interval = 3.0
@@ -240,15 +238,6 @@ class Naver(Thread):
                 self.log.append("姿态校准时被用户中断")
                 break
 
-            # # 【新增逻辑】: 到达后，再执行设备指令
-            # self.log.append(f"开始执行目标点 {idx_info} 的设备指令...")
-            # self.send_sync_commands(target)
-            # # 增加一个延时，以等待滑台、升降台等物理设备完成动作
-            # # 这个时间可以根据您的设备实际响应速度进行调整
-            # self.log.append("等待设备动作完成 (5秒)...")
-            # rospy.sleep(5.0)
-            # self.log.append("设备动作完成。")
-
         self.status = NAV_STATUS_DONE
         if not self.stop_event.is_set():
             self.log.append(f"{self.dir_mode} 导航任务完成")
@@ -319,7 +308,6 @@ class Naver(Thread):
 
             # 2. Minimum rotate speed 100/1000 rad/s
             if yaw_error_rad >0:
-                # turn_cmd = np.clip(angular_velocity_cmd, 100, self.max_turn_cmd)
                 turn_cmd = np.clip(yaw_error_rad, math.pi*0.5, math.pi*0.95)
             else:
                 turn_cmd = np.clip(yaw_error_rad, -math.pi*0.95, -math.pi*0.5)
@@ -379,12 +367,10 @@ class Naver(Thread):
 
             # 2. Minimum rotate speed 100/1000 rad/s
             if yaw_error_rad >0:
-                # turn_cmd = np.clip(angular_velocity_cmd, 100, self.max_turn_cmd)
                 turn_cmd = np.clip(yaw_error_rad, math.pi*0.5, math.pi*0.95)
             else:
                 turn_cmd = np.clip(yaw_error_rad, -math.pi*0.95, -math.pi*0.5)
                 
-                # turn_cmd = np.clip(angular_velocity_cmd, -self.max_turn_cmd, -100 )
 
 
             self.log.append(f"yaw_error_deg：{yaw_error_deg}")
@@ -396,10 +382,6 @@ class Naver(Thread):
     def go_to_point_turn_then_drive(self, start_pos, target_pos, target_info):
         """采用“先原地转向，再直线行驶”的策略导航到目标点。"""
         self.log.append(f"开始导航至目标点 {target_info}")
-        # self.log.append("*"*10)
-        # self.log.append(f"Lat {target_pos['lat']} Lng{target_pos['lng']}")
-        # self.log.append("*"*10)
-        # control_rate = rospy.Rate(10)
         control_rate = rospy.Rate(2)
 
         # --- 阶段一: 原地旋转，对准目标 ---
@@ -463,7 +445,6 @@ class Naver(Thread):
                 last_recalibration_time = rospy.get_time() # 重置计时器
 
             if distance < self.arrival_threshold:
-                # self.align_heading_to_target(start_pos, target_pos, target_info)
                 self.log.append(f"距离目标点({distance:.2f} mm)小于阈值，认为到达。")
                 self.commander.send_stop_command()
                 return True
@@ -492,7 +473,6 @@ class Naver(Thread):
         # ROS角度(弧度) = -地理方位角(弧度) + π/2
         self.log.append(f"Cur ROS: {raw_yaw_deg} ")
         travel_yaw_deg = -raw_yaw_deg + 90
-        # travel_yaw_deg=raw_yaw_deg+90
         self.log.append(f"Cur GEO: {travel_yaw_deg} ")
 
         lat1_rad, lon1_rad, lat2_rad, lon2_rad, current_travel_yaw_rad = map(
@@ -504,24 +484,18 @@ class Naver(Thread):
         x = math.cos(lat1_rad) * math.sin(lat2_rad) - math.sin(lat1_rad) * math.cos(lat2_rad) * math.cos(dlon)
         
         target_angle_rad = math.atan2(y, x)
-        # target_angle_rad = math.atan2(x, y)
 
         # 使用修正后的航向进行误差计算
         yaw_error = target_angle_rad - current_travel_yaw_rad
-        # yaw_error = -target_angle_rad + current_travel_yaw_rad
         # 标准化到 [-pi, pi] 范围
         self.log.append(f"Tar: {target_angle_rad * 180 /math.pi} Cur: {current_travel_yaw_rad * 180 /math.pi}")
-        # self.log.append(f"Yaw Old {yaw_error}")
         yaw_error = (yaw_error + math.pi) % (2 * math.pi) - math.pi
-        # self.log.append(f"Yaw Fix {yaw_error}")
 
         reverse_motion = abs(yaw_error) > (math.pi / 2)
-        # reverse_motion = abs(yaw_error) > (math.pi)
         if reverse_motion:
             yaw_error = yaw_error - math.copysign(math.pi, yaw_error)
 
         return yaw_error, reverse_motion
-        # return yaw_error, reverse_motion
 
     def stop_robot(self):
         if self.commander:
@@ -761,7 +735,6 @@ class BasePlateCommand:
             y=int(turn_cmd),
             stop=0
         )
-        # print(f"[BaseComand] linear_velocity{linear_velocity} turn_cmd{turn_cmd}")
         self.log_container.append(f"[BaseComand] linear_velocity {linear_velocity} turn_cmd {turn_cmd}")
         self.pub.publish(control_msg)
     
