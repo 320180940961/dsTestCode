@@ -49,6 +49,11 @@ class Naver(Thread):
         self.stop_event = Event()
         self.log = []
 
+        # 为电机指令添加时间戳变量，并初始化为0
+        self.last_motor_command_time = 0.0
+
+        self.file_logger = None
+
         # 状态属性
         self.status = NAV_STATUS_IDLE
         self.current_position = None
@@ -87,8 +92,8 @@ class Naver(Thread):
         self.turn_arrival_threshold = 5.0 # 转向完成阈值（度），小于此值认为车头已对准
         self.kp_turn = 1.5                # 转向比例增益
         # self.kp_turn = 0.5                # 转向比例增益
-        self.forward_speed = 200           # 前进速度 mm/s
-        self.reverse_speed = 200           # 倒车速度 mm/s
+        self.forward_speed = 100           # 前进速度 mm/s
+        self.reverse_speed = 100           # 倒车速度 mm/s
         # self.max_turn_cmd = 174           # 最大转向控制值
 
         # 直行时，每隔多少秒检查一次航向
@@ -143,17 +148,29 @@ class Naver(Thread):
             self.slider_pub.publish(slider_msg)
 
         # 2. 控制电机
-        if 'motor_motor' in target_point:
-            # 假设电压为0时使用默认电压
-            motor_msg = MotorControl(mode=target_point['motor_motor'], voltage=0)
-            self.motor_pub.publish(motor_msg)
+        # 获取当前时间
+        current_time = rospy.get_time()
+        # 检查当前时间与上次发送时间的差值是否大于等于1秒
+        if (current_time - self.last_motor_command_time) >= 1.0:
+            if target_point['comment']=='start_motor':
+                # mode 0：关 ；1：开
+                # motor_msg = MotorControl(mode=1, voltage=0)
+                motor_msg = MotorControl(mode=1)
+                self.motor_pub.publish(motor_msg)
+                # 发送后，立即更新时间戳为当前时间
+                self.last_motor_command_time = current_time
+            else:
+                motor_msg = MotorControl(mode=0, voltage=0)
+                self.motor_pub.publish(motor_msg)
+                # 发送后，立即更新时间戳为当前时间
+                self.last_motor_command_time = current_time
+            
 
         # 3. 控制升降台
         if 'lift_height' in target_point:
             # 假设模式1是移动到指定高度
-            lift_msg = Lift_control(mode=1, data=target_point['lift_height'])
+            lift_msg = Lift_control(mode=1, data=target_point['lift_height']//10)
             self.lift_pub.publish(lift_msg)
-            self.log.append("[WARN] 无法获取Lift状态，跳过X轴差值检查。")
 
     def run_navigation_task(self):
         """执行一次完整的导航任务。"""
@@ -223,6 +240,15 @@ class Naver(Thread):
                 self.log.append("姿态校准时被用户中断")
                 break
 
+            # # 【新增逻辑】: 到达后，再执行设备指令
+            # self.log.append(f"开始执行目标点 {idx_info} 的设备指令...")
+            # self.send_sync_commands(target)
+            # # 增加一个延时，以等待滑台、升降台等物理设备完成动作
+            # # 这个时间可以根据您的设备实际响应速度进行调整
+            # self.log.append("等待设备动作完成 (5秒)...")
+            # rospy.sleep(5.0)
+            # self.log.append("设备动作完成。")
+
         self.status = NAV_STATUS_DONE
         if not self.stop_event.is_set():
             self.log.append(f"{self.dir_mode} 导航任务完成")
@@ -265,10 +291,6 @@ class Naver(Thread):
             if self.stop_event.is_set(): return False
             
             current_pos = self.get_current_position()
-            if not current_pos:
-                self.log.append("[WARN] 无法获取当前位置，跳过姿态校准。")
-                rospy.sleep(0.5)
-                continue
 
             # --- 核心计算逻辑 ---
             current_yaw = current_pos.get('yaw', 0.0)
@@ -302,8 +324,7 @@ class Naver(Thread):
             else:
                 turn_cmd = np.clip(yaw_error_rad, -math.pi*0.95, -math.pi*0.5)
             
-            # 此处可以添加更精细的转向速度控制逻辑，为简化直接使用P控制
-            # 注意: 这里的turn_cmd需要根据ht_control消息的定义来调整单位和范围
+            
             angular_velocity_cmd = turn_cmd * 200 # 乘以系数并取反以匹配坐标系
 
             self.commander.send_move_command(0, angular_velocity_cmd)
@@ -395,11 +416,11 @@ class Naver(Thread):
 
         # 【修改点】: 增加直行卡住检测逻辑
         drive_start_time = rospy.get_time()
-        initial_drive_pos = self.get_current_position() or current_pos
+        initial_drive_pos = self.get_current_position()
         stuck_warning_issued = False
         last_recalibration_time = rospy.get_time() # 初始化中途校准计时器
 
-        current_pos = self.get_current_position() or current_pos
+        current_pos = self.get_current_position()
         _, reverse_motion = self.compute_heading_error(current_pos, target_pos)
         linear_velocity = -self.reverse_speed if reverse_motion else self.forward_speed
 
@@ -412,7 +433,7 @@ class Naver(Thread):
                 return False
 
             self.send_sync_commands(target_pos)
-            current_pos = self.get_current_position() or current_pos
+            current_pos = self.get_current_position()
             distance = self._calc_distance(current_pos['lat'], current_pos['lng'], target_pos['lat'], target_pos['lng'])
 
             self.log.append(f"行驶中... 目标点: {target_info}, 距离目标: {distance:.2f}mm 方向：{reverse_motion}")
@@ -434,6 +455,7 @@ class Naver(Thread):
                     self.log.append(f"航向偏差 ({yaw_error_deg_check:.1f}°) 过大，进行中途校准。")
                     self.commander.send_stop_command()
                     rospy.sleep(0.5)
+                    current_pos = self.get_current_position()
                     # 再次调用转向函数进行校准
                     self.align_heading_to_target(current_pos, target_pos, target_info)
                     self.log.append("中途校准完成，继续直线行驶。")
@@ -609,6 +631,36 @@ class Naver(Thread):
             self.sub5.unregister()
         if self.commander:
             self.commander.cleanup()
+
+        # 【新增功能开始】: 在任务结束时，将内存中的全部日志保存到文件
+        if self.recorder and self.recorder.listname and self.log:
+            try:
+                # 1. 定义日志文件存放目录和文件名
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                log_dir = os.path.join(base_dir, "logs")
+                os.makedirs(log_dir, exist_ok=True) # 确保目录存在
+
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                summary_filename = f"{self.recorder.listname}_{timestamp}_summary.log"
+                summary_filepath = os.path.join(log_dir, summary_filename)
+
+                # 2. 将self.log列表内容写入文件
+                with open(summary_filepath, 'w', encoding='utf-8') as f:
+                    # 使用 "\n".join() 将列表中的所有字符串用换行符连接成一个大字符串
+                    f.write("\n".join(self.log))
+                
+                # 3. 在屏幕上提示用户保存成功
+                self.log.append(f"会话日志摘要已保存到: {summary_filename}")
+
+            except Exception as e:
+                # 在屏幕上提示错误
+                self.log.append(f"[ERROR] 保存日志摘要失败: {e}")
+        # 【新增功能结束】
+
+        # 关闭实时文件记录器 (这是我们之前添加的功能，保持不变)
+        if self.file_logger:
+            self.log.append("文件记录器已关闭。")
+            self.file_logger.close()
 
     def _prepare_navigation(self, current_pos, mvto_point=None):
         if not self.points:
